@@ -1,14 +1,17 @@
--- Infinion Irregular Goods Transportation Addon
+-- Infinion Corporation Stations
 
+
+-- Include files
 package.path = package.path .. ";data/scripts/mods/?.lua"
-require ("infinionigta/config")
+require ("infinion/config")
+
 
 local Mod = {}
 
 -- Info for ModLoader
 Mod.info = 
 {
-	name= modName,
+	name=modName,
 	version=modVersion,
 	description=modDescription,
 	author="infal",
@@ -17,7 +20,6 @@ Mod.info =
 	dependency =
 	{
 		["Simple Mod Loader"]={ major=1, minor=0, revision=0 },
-		["Infinion Corporation"]={ major=1, minor=0, revision=0 },
 	},
 	playerScript=scriptPlayer,
 	onInitialize=nil,

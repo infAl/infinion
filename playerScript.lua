@@ -1,116 +1,114 @@
 -------------------------------------------------------------------------------
---	infinion igta/playerScript.lua
+--	infinion/playerScript.lua
 --
 --	This script is attached to the player entity at log in and registers a
---  callback for when the player enters a new sector.
---
---  When the player enters a sector we search for any stations with 'Infinion'
---	in the title and add a script to the station that lets players purchase a
---	dangerous goods permit.
---
---	Also, look at any ships in the sector. For pirates, give them a chance at
---	dropping the cargo shielding module. For military ships, replace their
---	antismuggle script with a custom version.
+--  callback for when the player enters a sector.
 --
 -------------------------------------------------------------------------------
 
--- Include Files
+
+-- Include files
 package.path = package.path .. ";data/scripts/mods/?.lua"
-require ("infinionigta/config")
+require ("infinion/config")
 
 if not disableMod then
 
 package.path = package.path .. ";data/scripts/lib/?.lua"
-require("utility")
 require("randomext")
+require("defaultscripts")
+Placer = require ("placer")
+SectorGenerator = require ("SectorGenerator")
+
+package.path = package.path .. ";data/scripts/?.lua"
+SectorSpecifics = require ("sectorspecifics")
 
 
 -- Local variables
-local rarities = {}
-	rarities[5] = 0.1	-- legendary
-	rarities[4] = 1		-- exotic
-	rarities[3] = 8		-- exceptional
-	rarities[2] = 16	-- rare
-	rarities[1] = 32	-- uncommon
-	rarities[0] = 128	-- common
+local externalScripts = {}
 
 
 -- Avorion default functions
 function initialize()
+	-- We want to know when a player enters a sector so we can check the sector
+	-- and see if we should spawn a new station or not
 	Player():registerCallback("onSectorEntered", "onSectorEntered")
-	
-	if onServer() then
-		-- Infinion Corp mod has an API function that lets us register our script so that any time an Infinion station
-		-- is spawned, our script will automatically be added to the station.
-		Player():invokeFunction("infinion/playerScript.lua", "registerExternalStationScript", scriptInfinionDialog)
-	end
 end
+
 
 -- Event handler functions
-function onSectorLeft(playerIndex, x, y)
-	Sector():unregisterCallback("onEntityCreate")
-	Sector():unregisterCallback("onEntityEntered")
-end
-
 function onSectorEntered(playerIndex, x, y)
 	if onServer() then
-		
+	
 		local sector = Sector()
 		
-		sector:registerCallback("onEntityCreate", "onEntityCreate")
-		sector:registerCallback("onEntityEntered", "onEntityEntered")
+		-- We want to spawn a station but need to check if it's okay first
+		local stationList = {Sector():getEntitiesByType(EntityType.Station)}
+		if stationList then
 		
-		local shipList = {sector:getEntitiesByType(EntityType.Ship)}
-		
-		math.randomseed(sector.seed)
-		
-		for _, ship in pairs(shipList) do
-		
-			if ship:getValue("is_pirate") == 1 and math.random(1, 100) <= chancePiratesDropCargoShield then
-				-- If the ship has the is_pirate value set, we can add a cargo shield system upgrade to their loot table
-				-- Use a random to make it, well... more random - ie: not every pirate drops the module
+			local stationCount = 0
+			for _, station in pairs(stationList) do
+				if string.match(station.title, "Infinion") then
+					-- If we have already spawned a station in this system then we don't want to
+					-- spawn another
+					return
+				end
+				stationCount = stationCount + 1
+			end
+			
+			-- Use the sector specifics script to see if the sector is regular and/or a faction home
+			local secSpec = SectorSpecifics()
+			local isRegular, _, _, isHome, _ = secSpec:determineContent(x, y, Server().seed)
+			if isRegular and stationCount > 1 then
+				-- This sector has other stations and we haven't spawned a station here yet
+				-- so it is a valid candidate for spawning one of our stations.
 				
-				local rarity = Rarity(getValueFromDistribution(rarities))
-				Loot(ship.index):insert(SystemUpgradeTemplate(scriptCargoShield, rarity, random():createSeed()))
-			elseif ship:hasScript("entity/antismuggle.lua") then
-				-- "Brainwashing"
-				-- Find any military ships and replace their antismuggle script with our custom one
+				local spawnStation = false
+				if isHome and alwaysInHomeSectors.infinion then
+					-- Infinion Corporation is always represented in faction home systems!
+					-- (if that's what the config file says)
+					spawnStation = true
+				else
+					-- Use the faction name to make a seed for random so that other factions could use the
+					-- same code but spawn in different sectors.
+					math.randomseed(makeHash(infinion, x, y, sector.seed))
+					if math.random(1, 100) > spawnChance.infinion then
+						-- Use random and to reduce the number of sectors we spawn
+						-- the station in, otherwise they will be too common.
+						spawnStation = true
+					end
+				end
 				
-				ship:removeScript("entity/antismuggle.lua")
-				ship:addScriptOnce(scriptAntiSmuggle)
+				if spawnStation then
+					printlog("<Infinion> Spawning new station: %s in sector %i, %i", infinion .. " " .. outpost, x, y)
+					--Server():broadcastChatMessage("Infinion", 0, "Spawning new station"%_t)
+					
+					local generator = SectorGenerator(x, y)
+					local faction = Galaxy():getControllingFaction(x, y)
+					local station = generator:createStation(faction, scriptOutpost, 0.1)
+					local position = generator:getPositionInSector(5000)
+					
+					station.title = infinion .. " " .. outpost
+					station.position = position or Matrix()
+					
+					for _, script in pairs(externalScripts) do
+						station:addScriptOnce(script)
+						printlog("<Infinion> Added script: %s to station", script)
+					end
+
+					Placer.resolveIntersections()
+				end
 			end
 		end
 	end		
 end
 
-function onEntityEntered(entityIndex)
-	Server():broadcastChatMessage("Infinion IGTA", 0, "onEntityEntered")
-	onEntityCreate(entityIndex)
-end
+-- API functions (Can be called from other mods etc)
 
-function onEntityCreate(entityIndex)
-	--Server():broadcastChatMessage("Infinion IGTA", 0, "onEntityCreate")
-
-	local entity = Entity(entityIndex)
-	local sector = Sector()
-	math.randomseed(sector.seed)
-	
-	if entity.isShip then
-		-- Check if the entity is a pirate or military ship
-		if entity:getValue("is_pirate") == 1 and math.random(1, 100) <= chancePiratesDropCargoShield then
-			-- If the ship has the is_pirate value set, we can add a cargo shield system upgrade to their loot table
-			-- Use a random to make it, well... more random - ie: not every pirate drops the module
-			
-			local rarity = Rarity(getValueFromDistribution(rarities))
-			Loot(entityIndex):insert(SystemUpgradeTemplate(scriptCargoShield, rarity, random():createSeed()))
-			
-		elseif entity:hasScript("entity/antismuggle.lua") then
-			-- "Brainwashing"
-			-- Find any military ships and replace their antismuggle script with our custom one
-			
-			entity:removeScript("entity/antismuggle.lua")
-			entity:addScriptOnce(scriptAntiSmuggle)
-		end
+-- A function to make it easier for other mods to attach scripts to our custom stations
+-- @param script The name of the script file to attach to the station
+function registerExternalStationScript(script)
+	if script then
+		table.insert(externalScripts, script)
 	end
 end
 
@@ -118,22 +116,3 @@ else
 	-- disableMod is true
 function initialize() terminate() end
 end
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
