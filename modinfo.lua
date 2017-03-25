@@ -3,7 +3,7 @@
 
 -- Include files
 package.path = package.path .. ";data/scripts/mods/?.lua"
-require ("infinion/config")
+local Config = require ("infinion/config")
 
 
 local Mod = {}
@@ -11,19 +11,18 @@ local Mod = {}
 -- Info for ModLoader
 Mod.info = 
 {
-	name=modName,
-	version=modVersion,
-	description=modDescription,
+	name=Config.modName,
+	version=Config.modVersion,
+	description=Config.modDescription,
 	author="infal",
 	website="",
 	icon=nil,
 	dependency =
 	{
-		["Simple Mod Loader"]={ major=1, minor=0, revision=0 },
+		["Simple Mod Loader"]={ major=1, minor=2, revision=0 },
 	},
-	playerScript=scriptPlayer,
+	playerScript=Config.scriptPlayer,
 	onInitialize=nil,
 }
 
---ModLoader.register(Mod)
 return Mod

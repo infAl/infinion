@@ -9,9 +9,9 @@
 
 -- Include files
 package.path = package.path .. ";data/scripts/mods/?.lua"
-require ("infinion/config")
+local Config = require ("infinion/config")
 
-if not disableMod then
+if not Config.disableMod then
 
 package.path = package.path .. ";data/scripts/lib/?.lua"
 require("randomext")
@@ -25,6 +25,17 @@ SectorSpecifics = require ("sectorspecifics")
 
 -- Local variables
 local externalScripts = {}
+
+
+-- API functions (Can be called from other mods etc)
+
+-- A function to make it easier for other mods to attach scripts to our custom stations
+-- @param script The name of the script file to attach to the station
+function registerExternalStationScript(script)
+	if script then
+		table.insert(externalScripts, script)
+	end
+end
 
 
 -- Avorion default functions
@@ -47,7 +58,7 @@ function onSectorEntered(playerIndex, x, y)
 		
 			local stationCount = 0
 			for _, station in pairs(stationList) do
-				if string.match(station.title, "Infinion") then
+				if string.match(station.title, Config.infinion) then
 					-- If we have already spawned a station in this system then we don't want to
 					-- spawn another
 					return
@@ -63,15 +74,15 @@ function onSectorEntered(playerIndex, x, y)
 				-- so it is a valid candidate for spawning one of our stations.
 				
 				local spawnStation = false
-				if isHome and alwaysInHomeSectors.infinion then
+				if isHome and Config.alwaysInHomeSector.infinion then
 					-- Infinion Corporation is always represented in faction home systems!
 					-- (if that's what the config file says)
 					spawnStation = true
 				else
 					-- Use the faction name to make a seed for random so that other factions could use the
 					-- same code but spawn in different sectors.
-					math.randomseed(makeHash(infinion, x, y, sector.seed))
-					if math.random(1, 100) > spawnChance.infinion then
+					math.randomseed(makeHash(Config.infinion, x, y, sector.seed))
+					if math.random(1, 100) > Config.spawnChance.infinion then
 						-- Use random and to reduce the number of sectors we spawn
 						-- the station in, otherwise they will be too common.
 						spawnStation = true
@@ -79,15 +90,15 @@ function onSectorEntered(playerIndex, x, y)
 				end
 				
 				if spawnStation then
-					printlog("<Infinion> Spawning new station: %s in sector %i, %i", infinion .. " " .. outpost, x, y)
+					printlog("<Infinion> Spawning new station: %s in sector %i, %i", Config.infinion .. " " .. Config.outpost, x, y)
 					--Server():broadcastChatMessage("Infinion", 0, "Spawning new station"%_t)
 					
 					local generator = SectorGenerator(x, y)
 					local faction = Galaxy():getControllingFaction(x, y)
-					local station = generator:createStation(faction, scriptOutpost, 0.1)
+					local station = generator:createStation(faction, Config.scriptOutpost, 0.1)
 					local position = generator:getPositionInSector(5000)
 					
-					station.title = infinion .. " " .. outpost
+					station.title = Config.infinion .. " " .. Config.outpost
 					station.position = position or Matrix()
 					
 					for _, script in pairs(externalScripts) do
@@ -100,16 +111,6 @@ function onSectorEntered(playerIndex, x, y)
 			end
 		end
 	end		
-end
-
--- API functions (Can be called from other mods etc)
-
--- A function to make it easier for other mods to attach scripts to our custom stations
--- @param script The name of the script file to attach to the station
-function registerExternalStationScript(script)
-	if script then
-		table.insert(externalScripts, script)
-	end
 end
 
 else 

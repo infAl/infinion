@@ -1,8 +1,8 @@
 -- Include files
 package.path = package.path .. ";data/scripts/mods/?.lua"
-require ("infinion/config")
+local Config = require ("infinion/config")
 
-if not disableMod then
+if not Config.disableMod then
 
 package.path = package.path .. ";data/scripts/lib/?.lua"
 Dialog = require ("dialogutility")
@@ -11,7 +11,7 @@ Dialog = require ("dialogutility")
 -- Avorion default functions
 function initialize()
 	-- The greeting text
-	InteractionText(Entity().index).text = dialogGreeting
+	InteractionText(Entity().index).text = Config.dialogGreeting
 	
     if onClient() then 
 		if EntityIcon().icon == "" then
